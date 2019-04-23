@@ -111,7 +111,6 @@ contract('Root chain - client', async function(accounts) {
         })
       chai.expect(response).to.be.json
       chai.expect(response).to.have.status(200)
-      console.log('reponse in transfer', response.body.result)
       chai
         .expect(response.body.result.length)
         .to.be.above(0, 'No UTXOs to transfer')
@@ -147,12 +146,6 @@ contract('Root chain - client', async function(accounts) {
       await waitFor(10000)
     })
     it('fast-withdraw', async function() {
-      // get balance with web3
-      var bal = await web3.eth.getBalance(
-        '0x9fb29aac15b9a4b7f17c3385939b007540f4d791'
-      )
-      console.log('balance of account', bal.toString())
-
       const withdrawer = wallets[1]
       const masterAccount = wallets[0] // account 2
 
@@ -180,6 +173,7 @@ contract('Root chain - client', async function(accounts) {
         [blockNumber, txIndex, outputIndex], // pos
         value
       )
+
       const transferTxBytes = utils.bufferToHex(transferTx.serializeTx(true)) // include signature
 
       // broadcast transfer tx
@@ -194,8 +188,14 @@ contract('Root chain - client', async function(accounts) {
         })
       chai.expect(response).to.be.json
       chai.expect(response).to.have.status(200)
-      console.log('withdraw', response.body.results)
       chai.expect(response.body.result).to.not.equal('0x')
+      console.log('transaction on sidechain sent!', response.body.result)
+
+      // the transfer transaction is sent in the above block of code
+      // you can see the output in the authorised-dev terminal
+      // however till there is a checkpoint on chain we wont be able to see transfer on sidechain
+      // hence the logs below will show that the UTXO is still owned by wallet[1]
+      // however we will still transfer the user funds on mainchain and wait for transfer on sidechain to go through
 
       let masterAccountResponse = await chai
         .request(endPoint)
@@ -207,34 +207,57 @@ contract('Root chain - client', async function(accounts) {
           id: 1
         })
       console.log('master account response', masterAccountResponse.body.result)
+      let res = await chai
+        .request(endPoint)
+        .post('/')
+        .send({
+          jsonrpc: '2.0',
+          method: 'plasma_getUTXOs',
+          params: [withdrawer.getAddressString()],
+          id: 1
+        })
+      chai.expect(res).to.be.json
+      chai.expect(res).to.have.status(200)
+      console.log('withdraw account response', res.body.result)
 
+      console.log(
+        'addressses',
+        withdrawer.getAddressString(),
+        masterAccount.getAddressString()
+      )
       // we transfer money on mainchain now
       var balanceOfUserOnMainchain = await web3.eth.getBalance(
-        withdrawer.toString()
+        withdrawer.getAddressString()
       )
       var balanceOfMasterOnMainchain = await web3.eth.getBalance(
-        masterAccount.toString()
+        masterAccount.getAddressString()
       )
       console.log(
-        'balance before withdraw. User: %s MasterAccount:%v',
-        balanceOfUserOnMainchain,
-        balanceOfMasterOnMainchain
+        'balance before withdraw. User: %s MasterAccount:%s',
+        web3.fromWei(balanceOfUserOnMainchain),
+        web3.fromWei(balanceOfMasterOnMainchain)
       )
+      // doing the transfer
       var result = await web3.eth.sendTransaction({
-        from: masterAccount,
-        to: withdrawer,
+        from: masterAccount.getAddressString(),
+        to: withdrawer.getAddressString(),
         value: value
       })
-      console.log('sent money on mainchain result', result)
-    })
-    var balanceOfUserOnMainchain = await web3.eth.getBalance(withdrawer)
-    var balanceOfMasterOnMainchain = await web3.eth.getBalance(masterAccount)
-    console.log(
-      'balance after withdraw. User: %s MasterAccount:%v',
-      balanceOfUserOnMainchain,
-      balanceOfMasterOnMainchain
-    )
+      console.log('sent money on mainchain txHash: ', result)
 
+      var balanceOfUserOnMainchainAfter = await web3.eth.getBalance(
+        withdrawer.getAddressString()
+      )
+      var balanceOfMasterOnMainchainAfter = await web3.eth.getBalance(
+        masterAccount.getAddressString()
+      )
+
+      console.log(
+        'balance after withdraw. User: %s MasterAccount: %s',
+        web3.fromWei(balanceOfUserOnMainchainAfter),
+        web3.fromWei(balanceOfMasterOnMainchainAfter)
+      )
+    })
     it('withdraw', async function() {
       const withdrawer = wallets[1]
 
