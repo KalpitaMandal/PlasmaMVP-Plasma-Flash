@@ -168,6 +168,7 @@ contract('Root chain - client', async function(accounts) {
         })
       chai.expect(response).to.be.json
       chai.expect(response).to.have.status(200)
+      console.log('withdraw account response', response.body.result)
       chai
         .expect(response.body.result.length)
         .to.be.above(0, 'No UTXOs to withdraw')
@@ -193,7 +194,7 @@ contract('Root chain - client', async function(accounts) {
         })
       chai.expect(response).to.be.json
       chai.expect(response).to.have.status(200)
-      console.log('withdea', response.body.results)
+      console.log('withdraw', response.body.results)
       chai.expect(response.body.result).to.not.equal('0x')
 
       let masterAccountResponse = await chai
