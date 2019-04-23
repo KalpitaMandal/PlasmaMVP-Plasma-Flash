@@ -111,6 +111,7 @@ contract('Root chain - client', async function(accounts) {
         })
       chai.expect(response).to.be.json
       chai.expect(response).to.have.status(200)
+      console.log('reponse in transfer', response.body.result)
       chai
         .expect(response.body.result.length)
         .to.be.above(0, 'No UTXOs to transfer')
@@ -146,6 +147,12 @@ contract('Root chain - client', async function(accounts) {
       await waitFor(10000)
     })
     it('fast-withdraw', async function() {
+      // get balance with web3
+      var bal = await web3.eth.getBalance(
+        '0x9fb29aac15b9a4b7f17c3385939b007540f4d791'
+      )
+      console.log('balance of account', bal)
+
       const withdrawer = wallets[1]
       const masterAccount = wallets[2] // account 2
 
@@ -186,7 +193,19 @@ contract('Root chain - client', async function(accounts) {
         })
       chai.expect(response).to.be.json
       chai.expect(response).to.have.status(200)
+      console.log('withdea', response.body.results)
       chai.expect(response.body.result).to.not.equal('0x')
+
+      let masterAccountResponse = await chai
+        .request(endPoint)
+        .post('/')
+        .send({
+          jsonrpc: '2.0',
+          method: 'plasma_getUTXOs',
+          params: [masterAccount.getAddressString()],
+          id: 1
+        })
+      console.log('master account response', masterAccountResponse.body.result)
     })
 
     it('withdraw', async function() {
