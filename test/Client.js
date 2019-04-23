@@ -151,10 +151,10 @@ contract('Root chain - client', async function(accounts) {
       var bal = await web3.eth.getBalance(
         '0x9fb29aac15b9a4b7f17c3385939b007540f4d791'
       )
-      console.log('balance of account', bal)
+      console.log('balance of account', bal.toString())
 
       const withdrawer = wallets[1]
-      const masterAccount = wallets[2] // account 2
+      const masterAccount = wallets[0] // account 2
 
       // fetch utxos
       let response = await chai
@@ -207,7 +207,33 @@ contract('Root chain - client', async function(accounts) {
           id: 1
         })
       console.log('master account response', masterAccountResponse.body.result)
+
+      // we transfer money on mainchain now
+      var balanceOfUserOnMainchain = await web3.eth.getBalance(
+        withdrawer.toString()
+      )
+      var balanceOfMasterOnMainchain = await web3.eth.getBalance(
+        masterAccount.toString()
+      )
+      console.log(
+        'balance before withdraw. User: %s MasterAccount:%v',
+        balanceOfUserOnMainchain,
+        balanceOfMasterOnMainchain
+      )
+      var result = await web3.eth.sendTransaction({
+        from: masterAccount,
+        to: withdrawer,
+        value: value
+      })
+      console.log('sent money on mainchain result', result)
     })
+    var balanceOfUserOnMainchain = await web3.eth.getBalance(withdrawer)
+    var balanceOfMasterOnMainchain = await web3.eth.getBalance(masterAccount)
+    console.log(
+      'balance after withdraw. User: %s MasterAccount:%v',
+      balanceOfUserOnMainchain,
+      balanceOfMasterOnMainchain
+    )
 
     it('withdraw', async function() {
       const withdrawer = wallets[1]
