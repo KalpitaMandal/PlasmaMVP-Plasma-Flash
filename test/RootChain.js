@@ -699,10 +699,10 @@ contract('Root chain', function(accounts) {
 
       // submiting proof to rootchain contract
       let submitResponse = await submitProof(ChallengerPool, proof)
-      console.log('Notifying other nodes about a faulty exit transaction:\n',submitResponse)
+      console.log('Notifying other nodes about a faulty exit transaction',submitResponse)
       
       var ChallengerPoolBalance = web3.eth.getBalance(ChallengerPool.getAddressString())
-      console.log('Current balance of challenger Pool:\n%s\n',web3.fromWei(ChallengerPoolBalance))
+      console.log('Current balance of challenger Pool:%s',web3.fromWei(ChallengerPoolBalance))
 
       // checking balances of other account
 
@@ -719,11 +719,11 @@ contract('Root chain', function(accounts) {
 
       let depositbyfirst = await donate(wallets[2], value)
       console.log('Deposit has been received',depositbyfirst)
-      /*let depositbysecond = await donate(wallets[3],value)
+      let depositbysecond = await donate(wallets[3],value)
       console.log('Deposit has been received',depositbysecond)
       let depositbythird = await donate(wallets[4],value)
-      console.log('Deposit has been received',depositbythird)*/
-     
+      console.log('Deposit has been received',depositbythird)
+
       var SendExitTransaction = setTimeout(web3.eth.getBalance(ChallengerPool.getAddressString()),5000);
 
       if (SendExitTransaction-ChallengerPoolBalance > requiredamount){
