@@ -32,7 +32,7 @@ const endPoint = `http://localhost:${config.app.port}`
 // generate first 5 wallets
 const mnemonics =
   'clock radar mass judge dismiss just intact mind resemble fringe diary casino'
-const wallets = generateFirstWallets(mnemonics, 5)
+const wallets = generateFirstWallets(mnemonics, 7)
 
 const getDepositTx = (owner, value) => {
   return new Transaction([
@@ -602,7 +602,7 @@ contract('Root chain', function(accounts) {
 
   describe('challenger pool exit', async function() {
     const value = new BN(web3.toWei(1, 'ether'))
-
+    const valuedepositors = new BN(web3.toWei(3,'ether'))
     const requiredamount = new BN(web3.toWei(3,'ether'))
     const ChallengerPool = wallets[1] // same as accounts[1]
     const mycontract = '0x33c93ab8c2d94bacfc743d8632fb31206c466225'
@@ -633,6 +633,33 @@ contract('Root chain', function(accounts) {
         value: value
       })
 
+      // contributor 1
+
+      var depositor1 = wallets[2].getAddressString()
+      let deposit1Tx = getDepositTx(depositor1, valuedepositors)
+      // serialize tx bytes
+      let deposit1TxBytes = utils.bufferToHex(deposit1Tx.serializeTx())
+
+      // deposit
+      await rootChain.deposit(deposit1TxBytes, {
+        from: depositor1,
+        value: valuedepositors
+      })
+      let response = await chai
+      .request(endPoint)
+      .post('/')
+      .send({
+        jsonrpc: '2.0',
+        method: 'plasma_getUTXOs',
+        params: [depositor1],
+        id: 1
+      })
+      chai.expect(response).to.be.json
+      chai.expect(response).to.have.status(200)
+      chai
+        .expect(response.body.result.length)
+        .to.be.above(0, 'No UTXOs to withdraw')
+      console.log(response.body.result)
       //
       // exit
       //
@@ -706,25 +733,25 @@ contract('Root chain', function(accounts) {
 
       // checking balances of other account
 
-      var wallet2 = web3.eth.getBalance(wallets[2].getAddressString())
+     /*var wallet2 = web3.eth.getBalance(wallets[2].getAddressString())
       var wallet3 = web3.eth.getBalance(wallets[3].getAddressString())
       var wallet4 = web3.eth.getBalance(wallets[4].getAddressString())
       console.log('Balance of \n wallet 2: %s \n wallet 3: %s \n wallet 4: %s',
       web3.fromWei(wallet2),
       web3.fromWei(wallet3),
       web3.fromWei(wallet4)
-      )
+      )*/
       // Depositing into the Challenger Pool 
 
 
-      let depositbyfirst = await donate(wallets[2], value)
-      console.log('Deposit has been received',depositbyfirst)
-      let depositbysecond = await donate(wallets[3],value)
-      console.log('Deposit has been received',depositbysecond)
-      let depositbythird = await donate(wallets[4],value)
-      console.log('Deposit has been received',depositbythird)
+      //let depositbyfirst = await donate(wallets[2], value)
+      //console.log('Deposit has been received',depositbyfirst)
+      //let depositbysecond = await donate(wallets[3],value)
+      //console.log('Deposit has been received',depositbysecond)
+      //let depositbythird = await donate(wallets[4],value)
+      //console.log('Deposit has been received',depositbythird)
 
-      var SendExitTransaction = setTimeout(web3.eth.getBalance(ChallengerPool.getAddressString()),5000);
+      /*var SendExitTransaction = setTimeout(web3.eth.getBalance(ChallengerPool.getAddressString()),5000);
 
       if (SendExitTransaction-ChallengerPoolBalance > requiredamount){
               //
@@ -760,7 +787,7 @@ contract('Root chain', function(accounts) {
       }
       else{
         console.log('Exit has not been challenged due to lack of donations')
-      }
+      }*/
 
 
       async function donate(owner, value){
