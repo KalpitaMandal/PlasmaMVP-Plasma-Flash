@@ -1,10 +1,12 @@
 import utils from 'ethereumjs-util'
 import chai from 'chai'
 import chaiHttp from 'chai-http'
+//import assertRevert from './helpers/assertRevert'
 import { mineToBlockHeight, waitFor } from './helpers/utils'
 import { generateFirstWallets } from './helpers/wallets'
 
 import Transaction from '../src/chain/transaction'
+import FixedMerkleTree from '../src/lib/fixed-merkle-tree'
 import config from '../src/config'
 
 let RootChain = artifacts.require('./RootChain.sol')
@@ -63,21 +65,22 @@ const getTransferTx = (from, to, pos, value) => {
 }
 
 const value = new BN(web3.toWei(1, 'ether'))
+const requiredamount = new BN(web3.toWei(3,'ether'))
 const mnemonics =
   'clock radar mass judge dismiss just intact mind resemble fringe diary casino'
-const wallets = generateFirstWallets(mnemonics, 5)
+const wallets = generateFirstWallets(mnemonics, 6)
 
 // client
-contract('Root chain - client', async function(accounts) {
-  describe('Client', async function() {
+contract('Root chain - client', async function (accounts) {
+  describe('Client', async function () {
     let rootChainContract
 
-    before(async function() {
+    before(async function () {
       // get contract from address
       rootChainContract = RootChain.at(config.chain.rootChainContract)
     })
 
-    it('deposit', async function() {
+    it('deposit', async function () {
       // draft deposit tx with 1 ether
       const depositor = wallets[0]
       const depositTx = getDepositTx(depositor, value)
@@ -89,13 +92,74 @@ contract('Root chain - client', async function(accounts) {
         from: depositor.getAddressString(),
         value: value.toString() // 1 value
       })
+
+      // draft deposit tx with 1 ether
+      const depositor1 = wallets[1]
+      const depositTx1 = getDepositTx(depositor1, value)
+      const depositTxBytes1 = utils.bufferToHex(depositTx1.serializeTx())
+
+      // deposit
+      const receipt1 = await rootChainContract.deposit(depositTxBytes1, {
+        gas: 200000,
+        from: depositor1.getAddressString(),
+        value: value.toString() // 1 value
+      })
+
+      // draft deposit tx with 1 ether
+      const depositor2 = wallets[2]
+      const depositTx2 = getDepositTx(depositor2, value)
+      const depositTxBytes2 = utils.bufferToHex(depositTx2.serializeTx())
+      
+      // deposit
+      const receipt2 = await rootChainContract.deposit(depositTxBytes2, {
+      gas: 200000,
+      from: depositor2.getAddressString(),
+      value: value.toString() // 1 value
+      })
+
+      // draft deposit tx with 1 ether
+      const depositor3 = wallets[3]
+      const depositTx3 = getDepositTx(depositor3, value)
+      const depositTxBytes3 = utils.bufferToHex(depositTx3.serializeTx())
+      
+      // deposit
+      const receipt3 = await rootChainContract.deposit(depositTxBytes3, {
+      gas: 200000,
+      from: depositor3.getAddressString(),
+      value: value.toString() // 1 value
+      })
+
+      // draft deposit tx with 1 ether
+      const depositor4 = wallets[4]
+      const depositTx4 = getDepositTx(depositor4, value)
+      const depositTxBytes4 = utils.bufferToHex(depositTx4.serializeTx())
+      
+      // deposit
+      const receipt4 = await rootChainContract.deposit(depositTxBytes4, {
+      gas: 200000,
+      from: depositor4.getAddressString(),
+      value: value.toString() // 1 value
+      })
+
+      // draft deposit tx with 1 ether
+      const depositor5 = wallets[5]
+      const depositTx5 = getDepositTx(depositor5, value)
+      const depositTxBytes5 = utils.bufferToHex(depositTx5.serializeTx())
+      
+      // deposit
+      const receipt5 = await rootChainContract.deposit(depositTxBytes5, {
+      gas: 200000,
+      from: depositor5.getAddressString(),
+      value: value.toString() // 1 value
+      })
+
       // console.log(receipt)
 
       // wait for 5 sec (give time to sync chain. TODO fix it)
-      await waitFor(10000)
+      await waitFor(15000)
     })
 
-    it('transfer', async function() {
+    it('transfer', async function () {
       // draft deposit tx with 1 ether
       const from = wallets[0] // account 1
       const to = wallets[1] // account 2
@@ -114,6 +178,18 @@ contract('Root chain - client', async function(accounts) {
       chai
         .expect(response.body.result.length)
         .to.be.above(0, 'No UTXOs to transfer')
+      //console.log("from address", response.body.result)
+      let response1 = await chai
+        .request(endPoint)
+        .post('/')
+        .send({
+          jsonrpc: '2.0',
+          method: 'plasma_getUTXOs',
+          params: [to.getAddressString()],
+          id: 1
+        })
+
+      //console.log("to address", response1.body.result)
 
       const { blockNumber, txIndex, outputIndex } = response.body.result[0]
       const transferTx = getTransferTx(
@@ -139,13 +215,13 @@ contract('Root chain - client', async function(accounts) {
       chai.expect(response.body.result).to.not.equal('0x')
     })
 
-    it('mine more blocks', async function() {
+    it('mine more blocks', async function () {
       await mineToBlockHeight(web3.eth.blockNumber + 7)
 
       // wait for 10 sec (give time to sync chain. TODO fix it)
       await waitFor(10000)
     })
-    it('fast-withdraw', async function() {
+    it('fast-withdraw', async function () {
       const withdrawer = wallets[1]
       const masterAccount = wallets[0] // account 2
 
@@ -258,7 +334,7 @@ contract('Root chain - client', async function(accounts) {
         web3.fromWei(balanceOfMasterOnMainchainAfter)
       )
     })
-    it('withdraw', async function() {
+    it('withdraw', async function () {
       const withdrawer = wallets[1]
 
       // fetch utxos
@@ -310,8 +386,8 @@ contract('Root chain - client', async function(accounts) {
       // start exit
       const receipt = await rootChainContract.startExit(
         parseInt(blockNumber) * 1000000000 +
-          parseInt(txIndex) * 10000 +
-          parseInt(outputIndex),
+        parseInt(txIndex) * 10000 +
+        parseInt(outputIndex),
         utils.bufferToHex(exitTx.serializeTx(false)), // serialize without signature
         merkleProof,
         sigs,
@@ -320,7 +396,328 @@ contract('Root chain - client', async function(accounts) {
           from: withdrawer.getAddressString()
         }
       )
-      // console.log(receipt)
+      console.log(receipt)
     })
+    it('challenger pool exit', async function() { 
+      const ChallengerPool = wallets[2] // same as accounts[1]
+      const mycontract = '0x33c93ab8c2d94bacfc743d8632fb31206c466225'
+      //const mycontract = config.chain.rootChainContract
+      const withdrawer = wallets[0]
+      let totalVal
+      //
+      // deposit
+      //
+
+      //withdrawer
+      const depositTx = getDepositTx(withdrawer, value)
+  
+      // serialize tx bytes
+      let depositTxBytes = utils.bufferToHex(depositTx.serializeTx())
+  
+      // deposit
+      const receipt1 = await rootChainContract.deposit(depositTxBytes, {
+      gas: 200000,
+      from: withdrawer.getAddressString(),
+      value: value.toString()
+        })
+      // draft deposit tx with 1 ether
+      const depositor2 = wallets[2]
+      const depositTx2 = getDepositTx(depositor2, value)
+      const depositTxBytes2 = utils.bufferToHex(depositTx2.serializeTx())
+      
+      // deposit
+      const receipt2 = await rootChainContract.deposit(depositTxBytes2, {
+      gas: 200000,
+      from: depositor2.getAddressString(),
+      value: value.toString() // 1 value
+      })
+
+      // draft deposit tx with 1 ether
+      const depositor3 = wallets[3]
+      const depositTx3 = getDepositTx(depositor3, value)
+      const depositTxBytes3 = utils.bufferToHex(depositTx3.serializeTx())
+      
+      // deposit
+      const receipt3 = await rootChainContract.deposit(depositTxBytes3, {
+      gas: 200000,
+      from: depositor3.getAddressString(),
+      value: value.toString() // 1 value
+      })
+
+      // draft deposit tx with 1 ether
+      const depositor4 = wallets[4]
+      const depositTx4 = getDepositTx(depositor4, value)
+      const depositTxBytes4 = utils.bufferToHex(depositTx4.serializeTx())
+      
+      // deposit
+      const receipt4 = await rootChainContract.deposit(depositTxBytes4, {
+      gas: 200000,
+      from: depositor4.getAddressString(),
+      value: value.toString() // 1 value
+      })
+
+      // draft deposit tx with 1 ether
+      const depositor5 = wallets[5]
+      const depositTx5 = getDepositTx(depositor5, value)
+      const depositTxBytes5 = utils.bufferToHex(depositTx5.serializeTx())
+      
+      // deposit
+      const receipt5 = await rootChainContract.deposit(depositTxBytes5, {
+      gas: 200000,
+      from: depositor5.getAddressString(),
+      value: value.toString() // 1 value
+      })
+      await waitFor(15000)
+      console.log('Deposit done!\n')
+        
+        //
+        //  faulty exit
+        //
+  
+      // fetch utxos
+      let response = await chai
+        .request(endPoint)
+        .post('/')
+        .send({
+          jsonrpc: '2.0',
+          method: 'plasma_getUTXOs',
+          params: [withdrawer.getAddressString()],
+          id: 1
+        })
+      chai.expect(response).to.be.json
+      chai.expect(response).to.have.status(200)
+      chai
+        .expect(response.body.result.length)
+        .to.be.above(0, 'No UTXOs to withdraw')
+
+      const { blockNumber, txIndex, outputIndex, tx } = response.body.result[0]
+      const exitTx = new Transaction(tx)
+      let merkleProofResponse = await chai
+        .request(endPoint)
+        .post('/')
+        .send({
+          jsonrpc: '2.0',
+          method: 'plasma_getMerkleProof',
+          params: [parseInt(blockNumber), parseInt(txIndex)],
+          id: 1
+        })
+      chai.expect(response).to.be.json
+      chai.expect(response).to.have.status(200)
+
+      const {
+        proof: merkleProof,
+        root: childBlockRoot
+      } = merkleProofResponse.body.result
+
+      const sigs = utils.bufferToHex(
+        Buffer.concat([
+          exitTx.sig1,
+          exitTx.sig2,
+          exitTx.confirmSig(
+            utils.toBuffer(childBlockRoot),
+            wallets[0].getPrivateKey() // attested transaction from sender to receiver
+          )
+        ])
+      )
+
+      // start exit
+      const receipt = await rootChainContract.startExit(
+        parseInt(blockNumber) * 1000000000 +
+        parseInt(txIndex) * 10000 +
+        parseInt(outputIndex),
+        utils.bufferToHex(exitTx.serializeTx(false)), // serialize without signature
+        merkleProof,
+        sigs,
+        {
+          gas: 500000,
+          from: withdrawer.getAddressString()
+        }
+      )
+      console.log('Exit Done!\n')
+
+        //
+        // transfer
+        //
+  
+        let transferTx = new Transaction([
+          utils.toBuffer(blockNumber), // block number for first input
+          new Buffer([]), // tx number for 1st input
+          new Buffer([]), // previous output number 1 (as 1st input)
+          new Buffer([]), // block number 2
+          new Buffer([]), // tx number 2
+          new Buffer([]), // previous output number 2 (as 2nd input)
+  
+          utils.toBuffer(withdrawer.getAddressString()), // output address 1
+          value.toArrayLike(Buffer, 'be', 32), // value for output 2
+  
+          utils.zeros(20), // output address 2
+          new Buffer([]), // value for output 2
+  
+          new Buffer([]) // fee
+        ])
+        
+        // not required for client side
+
+       /* // serialize tx bytes
+        let transferTxBytes = utils.bufferToHex(transferTx.serializeTx())
+        transferTx.sign1(wallets[0].getPrivateKey()) // sign1
+        merkleHash = transferTx.merkleHash()
+        tree = new FixedMerkleTree(16, [merkleHash])
+        proof = utils.bufferToHex(Buffer.concat(tree.getPlasmaProof(merkleHash)))
+        console.log('Serializing Done!\n')
+        // submit block
+        let blknum = (await rootChainContract.currentChildBlock()).toNumber()
+        let receiptof1 = await rootChainContract.submitBlock(
+          utils.bufferToHex(tree.getRoot()),
+          blknum
+        )
+        console.log('Block submitted!\n')*/
+  
+        // submiting proof to rootchain contract
+        let submitResponse = await submitProof(ChallengerPool, merkleProof)
+        console.log('Notifying other nodes about a faulty exit transaction',submitResponse)
+        
+        // challenger pool available balance
+        // fetch utxos
+        let responsechallenger = await chai
+         .request(endPoint)
+         .post('/')
+         .send({
+           jsonrpc: '2.0',
+           method: 'plasma_getUTXOs',
+           params: [ChallengerPool.getAddressString()],
+           id: 1
+         })
+         chai.expect(responsechallenger).to.be.json
+         chai.expect(responsechallenger).to.have.status(200)
+         chai
+           .expect(responsechallenger.body.result.length)
+           .to.be.above(0, 'No UTXOs to withdraw')
+        console.log(responsechallenger.body.result)
+        
+        
+        // Depositing into the Challenger Pool 
+  
+  
+        const depositbyfirst = await donate(depositor3, value)
+        console.log('Deposit has been received',depositbyfirst)
+        const depositbysecond = await donate(depositor4, value)
+        console.log('Deposit has been received',depositbysecond)
+        const depositbythird = await donate(depositor5, value)
+        console.log('Deposit has been received',depositbythird)
+        console.log('Proceeding to Challenge Exit')  
+         //
+         // challenge exit
+         //
+  
+         let responsechallenge = await chai
+         .request(endPoint)
+         .post('/')
+         .send({
+           jsonrpc: '2.0',
+           method: 'plasma_getUTXOs',
+           params: [withdrawer.getAddressString()],
+           id: 1
+         })
+       chai.expect(responsechallenge).to.be.json
+       chai.expect(responsechallenge).to.have.status(200)
+       chai
+         .expect(responsechallenge.body.result.length)
+         .to.be.above(0, 'No UTXOs to withdraw')
+ 
+       const { blockNumberC, txIndexC, outputIndexC, txC } = responsechallenge.body.result[0]
+       const exitTxC = new Transaction(txC)
+       console.log('Got Exit Transaction!\n')
+       let merkleProofResponsechallenge = await chai
+         .request(endPoint)
+         .post('/')
+         .send({
+           jsonrpc: '2.0',
+           method: 'plasma_getMerkleProof',
+           params: [parseInt(blockNumberC), parseInt(txIndexC)],
+           id: 1
+         })
+       chai.expect(response).to.be.json
+       chai.expect(response).to.have.status(200)
+       console.log(merkleProofResponsechallenge.body.result)
+       const {
+          proof: merkleProofC,
+          root: childBlockRootC
+       } = merkleProofResponsechallenge.body.result
+ 
+       const sigsC = utils.bufferToHex(
+         Buffer.concat([
+           exitTx.sig1,
+           exitTx.sig2,
+           exitTx.confirmSig(
+             utils.toBuffer(childBlockRootC),
+             wallets[0].getPrivateKey() // attested transaction from sender to receiver
+           )
+         ])
+       )
+  
+        const exitIdC = (parseInt(blockNumberC) - 1) * 1000000000 + 10000 * 0 + 0
+        const receiptC = await rootChain.challengeExit(
+        parseInt(blockNumberC) * 1000000000 + parseInt(txIndexC) * 10000   + parseInt(outputIndexC),
+        exitIdC,
+        utils.bufferToHex(exitTxC.serializeTx(false)),
+        merkleProofC,
+        sigsC,
+        utils.bufferToHex(confirmSig)
+        )
+
+
+
+        async function donate(owner, value){
+          // fetch utxos
+          let response = await chai
+          .request(endPoint)
+          .post('/')
+          .send({
+            jsonrpc: '2.0',
+            method: 'plasma_getUTXOs',
+            params: [owner.getAddressString()],
+            id: 1
+          })
+          chai.expect(response).to.be.json
+          chai.expect(response).to.have.status(200)
+          chai
+            .expect(response.body.result.length)
+            .to.be.above(0, 'No UTXOs to withdraw')
+          const { blockNumber, txIndex, outputIndex } = response.body.result[0]
+          const donateTx = getTransferTx(
+            owner,
+            ChallengerPool,
+            [blockNumber, txIndex, outputIndex], // pos
+            value
+          )
+     
+          const donateTxBytes = utils.bufferToHex(donateTx.serializeTx(true)) // include signature
+     
+          // broadcast transfer tx
+          response = await chai
+            .request(endPoint)
+            .post('/')
+            .send({
+            jsonrpc: '2.0',
+            method: 'plasma_sendTx',
+            params: [donateTxBytes],
+            id: 1
+          })
+          chai.expect(response).to.be.json
+          chai.expect(response).to.have.status(200)
+          chai.expect(response.body.result).to.not.equal('0x')
+          console.log('%s has deposited into the Challenger Pool', owner.getAddressString())
+          return response.body.result
+        }
+        async function submitProof(owner, proof){
+          var result = await web3.eth.sendTransaction({
+            from: owner.getAddressString(),
+            to: mycontract,
+            data: proof
+          })
+          return result
+        }
+      })
   })
 })
