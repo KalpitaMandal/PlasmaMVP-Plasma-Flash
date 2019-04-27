@@ -1,14 +1,16 @@
 /* global assert */
 
 import utils from 'ethereumjs-util'
-
+import chai from 'chai'
+import chaiHttp from 'chai-http'
 import assertRevert from './helpers/assertRevert'
-import {mineToBlockHeight} from './helpers/utils'
+import {mineToBlockHeight, waitFor} from './helpers/utils'
 import {generateFirstWallets} from './helpers/wallets'
 
 // import chain components
 import Transaction from '../src/chain/transaction'
 import FixedMerkleTree from '../src/lib/fixed-merkle-tree'
+import config from '../src/config'
 
 // require root chain
 let RootChain = artifacts.require('./test/mocks/RootChainMock.sol')
@@ -16,11 +18,16 @@ let RootChain = artifacts.require('./test/mocks/RootChainMock.sol')
 const BN = utils.BN
 const rlp = utils.rlp
 
+chai.use(chaiHttp)
+
 const printReceiptEvents = receipt => {
   receipt.logs.forEach(l => {
     console.log(JSON.stringify(l.args))
   })
 }
+
+// check end point
+const endPoint = `http://localhost:${config.app.port}`
 
 // generate first 5 wallets
 const mnemonics =
@@ -590,6 +597,222 @@ contract('Root chain', function(accounts) {
         (await rootChain.getExit(exitId))[0].toString(),
         utils.bufferToHex(utils.zeros(20))
       )
+    })
+  })
+
+  describe('challenger pool exit', async function() {
+    const value = new BN(web3.toWei(1, 'ether'))
+
+    const requiredamount = new BN(web3.toWei(3,'ether'))
+    const ChallengerPool = wallets[1] // same as accounts[1]
+    const mycontract = '0x33c93ab8c2d94bacfc743d8632fb31206c466225'
+
+    let rootChain
+    let owner
+    let depositTx
+
+    // before task
+    before(async function() {
+      rootChain = await RootChain.new({from: accounts[0]})
+      owner = wallets[0].getAddressString() // same as accounts[0]
+    })
+
+    it('should allow users to challenge bad txs collectively', async function() {
+      //
+      // deposit
+      //
+
+      depositTx = getDepositTx(owner, value)
+
+      // serialize tx bytes
+      let depositTxBytes = utils.bufferToHex(depositTx.serializeTx())
+
+      // deposit
+      await rootChain.deposit(depositTxBytes, {
+        from: owner,
+        value: value
+      })
+
+      //
+      // exit
+      //
+
+      let currentChildBlock = 1
+      let merkleHash = depositTx.merkleHash()
+      let tree = new FixedMerkleTree(16, [merkleHash])
+      let proof = utils.bufferToHex(
+        Buffer.concat(tree.getPlasmaProof(merkleHash))
+      )
+      let childChainRoot = utils.toBuffer(
+        (await rootChain.getChildChain(currentChildBlock))[0]
+      )
+      let confirmSig = depositTx.confirmSig(
+        childChainRoot,
+        wallets[0].getPrivateKey()
+      )
+      let sigs = utils.bufferToHex(
+        Buffer.concat([depositTx.sig1, depositTx.sig2, confirmSig])
+      )
+
+      let receipt = await rootChain.startExit(
+        currentChildBlock * 1000000000 + 10000 * 0 + 0,
+        depositTxBytes,
+        proof,
+        sigs
+      )
+
+      //
+      // transfer
+      //
+
+      let transferTx = new Transaction([
+        utils.toBuffer(currentChildBlock), // block number for first input
+        new Buffer([]), // tx number for 1st input
+        new Buffer([]), // previous output number 1 (as 1st input)
+        new Buffer([]), // block number 2
+        new Buffer([]), // tx number 2
+        new Buffer([]), // previous output number 2 (as 2nd input)
+
+        utils.toBuffer(owner), // output address 1
+        value.toArrayLike(Buffer, 'be', 32), // value for output 2
+
+        utils.zeros(20), // output address 2
+        new Buffer([]), // value for output 2
+
+        new Buffer([]) // fee
+      ])
+
+      // serialize tx bytes
+      let transferTxBytes = utils.bufferToHex(transferTx.serializeTx())
+      transferTx.sign1(wallets[0].getPrivateKey()) // sign1
+      merkleHash = transferTx.merkleHash()
+      tree = new FixedMerkleTree(16, [merkleHash])
+      proof = utils.bufferToHex(Buffer.concat(tree.getPlasmaProof(merkleHash)))
+
+      // submit block
+      let blknum = (await rootChain.currentChildBlock()).toNumber()
+      receipt = await rootChain.submitBlock(
+        utils.bufferToHex(tree.getRoot()),
+        blknum
+      )
+
+
+      // submiting proof to rootchain contract
+      let submitResponse = await submitProof(ChallengerPool, proof)
+      console.log('Notifying other nodes about a faulty exit transaction:\n',submitResponse)
+      
+      var ChallengerPoolBalance = web3.eth.getBalance(ChallengerPool.getAddressString())
+      console.log('Current balance of challenger Pool:\n%s\n',web3.fromWei(ChallengerPoolBalance))
+
+      // checking balances of other account
+
+      var wallet2 = web3.eth.getBalance(wallets[2].getAddressString())
+      var wallet3 = web3.eth.getBalance(wallets[3].getAddressString())
+      var wallet4 = web3.eth.getBalance(wallets[4].getAddressString())
+      console.log('Balance of \n wallet 2: %s \n wallet 3: %s \n wallet 4: %s',
+      web3.fromWei(wallet2),
+      web3.fromWei(wallet3),
+      web3.fromWei(wallet4)
+      )
+      // Depositing into the Challenger Pool 
+
+
+      let depositbyfirst = await donate(wallets[2], value)
+      console.log('Deposit has been received',depositbyfirst)
+      /*let depositbysecond = await donate(wallets[3],value)
+      console.log('Deposit has been received',depositbysecond)
+      let depositbythird = await donate(wallets[4],value)
+      console.log('Deposit has been received',depositbythird)*/
+     
+      var SendExitTransaction = setTimeout(web3.eth.getBalance(ChallengerPool.getAddressString()),5000);
+
+      if (SendExitTransaction-ChallengerPoolBalance > requiredamount){
+              //
+              // challenge exit
+              //
+
+              currentChildBlock = 2
+              childChainRoot = utils.toBuffer(
+                (await rootChain.getChildChain(currentChildBlock))[0]
+              )
+              confirmSig = transferTx.confirmSig(
+                childChainRoot,
+                wallets[0].getPrivateKey()
+              )
+              sigs = utils.bufferToHex(
+                Buffer.concat([transferTx.sig1, transferTx.sig2])
+              )
+
+              const exitId = (currentChildBlock - 1) * 1000000000 + 10000 * 0 + 0
+              receipt = await rootChain.challengeExit(
+                currentChildBlock * 1000000000 + 10000 * 0 + 0,
+                exitId,
+                transferTxBytes,
+                proof,
+                sigs,
+                utils.bufferToHex(confirmSig)
+              )
+
+              assert.equal(
+                (await rootChain.getExit(exitId))[0].toString(),
+                utils.bufferToHex(utils.zeros(20))
+              )
+      }
+      else{
+        console.log('Exit has not been challenged due to lack of donations')
+      }
+
+
+      async function donate(owner, value){
+        // fetch utxos
+        let response = await chai
+        .request(endPoint)
+        .post('/')
+        .send({
+          jsonrpc: '2.0',
+          method: 'plasma_getUTXOs',
+          params: [owner.getAddressString()],
+          id: 1
+        })
+        chai.expect(response).to.be.json
+        chai.expect(response).to.have.status(200)
+        chai
+          .expect(response.body.result.length)
+          .to.be.above(0, 'No UTXOs to withdraw')
+        const { blockNumber, txIndex, outputIndex } = response.body.result[0]
+        const donateTx = getTransferTx(
+          owner,
+          ChallengerPool,
+          [blockNumber, txIndex, outputIndex], // pos
+          value
+        )
+   
+        const donateTxBytes = utils.bufferToHex(donateTx.serializeTx(true)) // include signature
+   
+        // broadcast transfer tx
+        response = await chai
+          .request(endPoint)
+          .post('/')
+          .send({
+          jsonrpc: '2.0',
+          method: 'plasma_sendTx',
+          params: [donateTxBytes],
+          id: 1
+        })
+        chai.expect(response).to.be.json
+        chai.expect(response).to.have.status(200)
+        chai.expect(response.body.result).to.not.equal('0x')
+        console.log('%s has deposited into the Challenger Pool', owner.getAddressString())
+        return response.body.result
+      }
+      async function submitProof(owner, proof){
+        var result = await web3.eth.sendTransaction({
+          from: owner.getAddressString(),
+          to: mycontract,
+          data: proof
+        })
+        return result
+      }
     })
   })
 })

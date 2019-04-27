@@ -1,10 +1,8 @@
-import Web3 from 'web3'
-import {Eth} from 'web3-eth'
 import utils from 'ethereumjs-util'
 import chai from 'chai'
 import chaiHttp from 'chai-http'
-import {mineToBlockHeight, waitFor} from './helpers/utils'
-import {generateFirstWallets} from './helpers/wallets'
+import { mineToBlockHeight, waitFor } from './helpers/utils'
+import { generateFirstWallets } from './helpers/wallets'
 
 import Transaction from '../src/chain/transaction'
 import config from '../src/config'
@@ -15,7 +13,6 @@ const BN = utils.BN
 const rlp = utils.rlp
 
 chai.use(chaiHttp)
-const web3 = new Web3(Web3.givenProvider)
 
 const printReceiptEvents = receipt => {
   receipt.logs.forEach(l => {
@@ -65,7 +62,7 @@ const getTransferTx = (from, to, pos, value) => {
   return tx
 }
 
-const value = new BN(web3.utils.toWei('1', 'ether'))
+const value = new BN(web3.toWei(1, 'ether'))
 const mnemonics =
   'clock radar mass judge dismiss just intact mind resemble fringe diary casino'
 const wallets = generateFirstWallets(mnemonics, 5)
@@ -117,8 +114,8 @@ contract('Root chain - client', async function(accounts) {
       chai
         .expect(response.body.result.length)
         .to.be.above(0, 'No UTXOs to transfer')
-      //console.log(response)
-      const {blockNumber, txIndex, outputIndex} = response.body.result[0]
+
+      const { blockNumber, txIndex, outputIndex } = response.body.result[0]
       const transferTx = getTransferTx(
         from,
         to,
@@ -148,12 +145,122 @@ contract('Root chain - client', async function(accounts) {
       // wait for 10 sec (give time to sync chain. TODO fix it)
       await waitFor(10000)
     })
+    it('fast-withdraw', async function() {
+      const withdrawer = wallets[1]
+      const masterAccount = wallets[0] // account 2
 
+      // fetch utxos
+      let response = await chai
+        .request(endPoint)
+        .post('/')
+        .send({
+          jsonrpc: '2.0',
+          method: 'plasma_getUTXOs',
+          params: [withdrawer.getAddressString()],
+          id: 1
+        })
+      chai.expect(response).to.be.json
+      chai.expect(response).to.have.status(200)
+      console.log('withdraw account response', response.body.result)
+      chai
+        .expect(response.body.result.length)
+        .to.be.above(0, 'No UTXOs to withdraw')
+
+      const { blockNumber, txIndex, outputIndex } = response.body.result[0]
+      const transferTx = getTransferTx(
+        withdrawer,
+        masterAccount,
+        [blockNumber, txIndex, outputIndex], // pos
+        value
+      )
+
+      const transferTxBytes = utils.bufferToHex(transferTx.serializeTx(true)) // include signature
+
+      // broadcast transfer tx
+      response = await chai
+        .request(endPoint)
+        .post('/')
+        .send({
+          jsonrpc: '2.0',
+          method: 'plasma_sendTx',
+          params: [transferTxBytes],
+          id: 1
+        })
+      chai.expect(response).to.be.json
+      chai.expect(response).to.have.status(200)
+      chai.expect(response.body.result).to.not.equal('0x')
+      console.log('transaction on sidechain sent!', response.body.result)
+
+      // the transfer transaction is sent in the above block of code
+      // you can see the output in the authorised-dev terminal
+      // however till there is a checkpoint on chain we wont be able to see transfer on sidechain
+      // hence the logs below will show that the UTXO is still owned by wallet[1]
+      // however we will still transfer the user funds on mainchain and wait for transfer on sidechain to go through
+
+      let masterAccountResponse = await chai
+        .request(endPoint)
+        .post('/')
+        .send({
+          jsonrpc: '2.0',
+          method: 'plasma_getUTXOs',
+          params: [masterAccount.getAddressString()],
+          id: 1
+        })
+      console.log('master account response', masterAccountResponse.body.result)
+      let res = await chai
+        .request(endPoint)
+        .post('/')
+        .send({
+          jsonrpc: '2.0',
+          method: 'plasma_getUTXOs',
+          params: [withdrawer.getAddressString()],
+          id: 1
+        })
+      chai.expect(res).to.be.json
+      chai.expect(res).to.have.status(200)
+      console.log('withdraw account response', res.body.result)
+
+      console.log(
+        'addressses',
+        withdrawer.getAddressString(),
+        masterAccount.getAddressString()
+      )
+      // we transfer money on mainchain now
+      var balanceOfUserOnMainchain = await web3.eth.getBalance(
+        withdrawer.getAddressString()
+      )
+      var balanceOfMasterOnMainchain = await web3.eth.getBalance(
+        masterAccount.getAddressString()
+      )
+      console.log(
+        'balance before withdraw. User: %s MasterAccount:%s',
+        web3.fromWei(balanceOfUserOnMainchain),
+        web3.fromWei(balanceOfMasterOnMainchain)
+      )
+      // doing the transfer
+      var result = await web3.eth.sendTransaction({
+        from: masterAccount.getAddressString(),
+        to: withdrawer.getAddressString(),
+        value: value
+      })
+      console.log('sent money on mainchain txHash: ', result)
+
+      var balanceOfUserOnMainchainAfter = await web3.eth.getBalance(
+        withdrawer.getAddressString()
+      )
+      var balanceOfMasterOnMainchainAfter = await web3.eth.getBalance(
+        masterAccount.getAddressString()
+      )
+
+      console.log(
+        'balance after withdraw. User: %s MasterAccount: %s',
+        web3.fromWei(balanceOfUserOnMainchainAfter),
+        web3.fromWei(balanceOfMasterOnMainchainAfter)
+      )
+    })
     it('withdraw', async function() {
       const withdrawer = wallets[1]
-      const masteraddress = wallets[3]
-      const latestmasterval = web3.eth.getbalance(masteraddress)
-      const retvalue = 0
+
       // fetch utxos
       let response = await chai
         .request(endPoint)
@@ -169,60 +276,8 @@ contract('Root chain - client', async function(accounts) {
       chai
         .expect(response.body.result.length)
         .to.be.above(0, 'No UTXOs to withdraw')
-        //console.log(response.body.result) // changed
-      const value1 = web3.eth.getbalance(withdrawer)
-      const {blockNumber, txIndex, outputIndex, tx} = response.body.result[0]
-      const transferTx = getTransferTx(
-        withdrawer,
-        masteraddress,
-        [blockNumber, txIndex, outputIndex], // pos
-        value1
-      )
-      /*const transferTxBytes = utils.bufferToHex(transferTx.serializeTx(true))
-            // broadcast transfer tx
-            response = await chai
-            .request(endPoint)
-            .post('/')
-            .send({
-              jsonrpc: '2.0',
-              method: 'plasma_sendTx',
-              params: [transferTxBytes],
-              id: 1
-            })
-          chai.expect(response).to.be.json
-          chai.expect(response).to.have.status(200)
-          chai.expect(response.body.result).to.not.equal('0x')
-        })
-    
-        it('mine more blocks', async function() {
-          await mineToBlockHeight(web3.eth.blockNumber + 7)
-    
-          // wait for 10 sec (give time to sync chain. TODO fix it)
-          await waitFor(10000)*/
-      response = await chai
-            .request(endPoint)
-            .post('/')
-            .send({
-              jsonrpc: '2.0',
-              method: 'plasma_getUTXOs',
-              params: [masteraddress.getAddressString()],
-              id: 1
-            })
-          chai.expect(response).to.be.json
-          chai.expect(response).to.have.status(200)
-          chai.expect(response.body.result).to.not.equal('0x')
-        })
-      const {blockNumber, txIndex, outputIndex, tx} = response.body.result[0]
 
-      while(1){
-        await waitFor(10000)
-        if(latestmasterval< web3.eth.getbalance(masteraddress)){
-          retvalue = web3.eth.getbalance(masteraddress).sub(latestmasterval)
-          latestmasterval = web3.eth.getbalance(masteraddress)
-          break;
-        }
-      }
-      web3.sendTransaction({to:withdrawer, from:masteraddress, value:retvalue})
+      const { blockNumber, txIndex, outputIndex, tx } = response.body.result[0]
       const exitTx = new Transaction(tx)
       let merkleProofResponse = await chai
         .request(endPoint)
@@ -247,11 +302,11 @@ contract('Root chain - client', async function(accounts) {
           exitTx.sig2,
           exitTx.confirmSig(
             utils.toBuffer(childBlockRoot),
-            wallets[1].getPrivateKey() // attested transaction from sender to receiver
+            wallets[0].getPrivateKey() // attested transaction from sender to receiver
           )
         ])
       )
-  
+
       // start exit
       const receipt = await rootChainContract.startExit(
         parseInt(blockNumber) * 1000000000 +
@@ -268,4 +323,4 @@ contract('Root chain - client', async function(accounts) {
       // console.log(receipt)
     })
   })
-
+})
