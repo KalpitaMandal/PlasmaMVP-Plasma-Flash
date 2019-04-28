@@ -93,7 +93,7 @@ contract('Root chain - client', async function (accounts) {
         value: value.toString() // 1 value
       })
 
-      // draft deposit tx with 1 ether
+      /*// draft deposit tx with 1 ether
       const depositor1 = wallets[1]
       const depositTx1 = getDepositTx(depositor1, value)
       const depositTxBytes1 = utils.bufferToHex(depositTx1.serializeTx())
@@ -151,7 +151,7 @@ contract('Root chain - client', async function (accounts) {
       gas: 200000,
       from: depositor5.getAddressString(),
       value: value.toString() // 1 value
-      })
+      })*/
 
       // console.log(receipt)
 
@@ -576,7 +576,7 @@ contract('Root chain - client', async function (accounts) {
         // submiting proof to rootchain contract
         let submitResponse = await submitProof(ChallengerPool, merkleProof)
         console.log('Notifying other nodes about a faulty exit transaction',submitResponse)
-        
+        console.log('Proof sent to the rootchain: ',merkleProof)
         // challenger pool available balance
         // fetch utxos
         let responsechallenger = await chai
