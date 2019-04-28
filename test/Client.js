@@ -537,8 +537,8 @@ contract('Root chain - client', async function (accounts) {
        console.log('Block submitted!\n')*/
 
       // submiting proof to rootchain contract
-      // let submitResponse = await submitProof(ChallengerPool, merkleProof)
-      // console.log('Notifying other nodes about a faulty exit transaction', submitResponse)
+      let submitResponse = await submitProof(ChallengerPool, merkleProof)
+      console.log('Notifying other nodes about a faulty exit transaction', submitResponse)
 
       // // challenger pool available balance
       // // fetch utxos
@@ -676,9 +676,10 @@ contract('Root chain - client', async function (accounts) {
       async function submitProof(owner, proof) {
         var result = await web3.eth.sendTransaction({
           from: owner.getAddressString(),
-          to: mycontract,
+          to: owner.getAddressString(),
           data: proof
         })
+
         return result
       }
       async function deposit(address) {
