@@ -382,7 +382,7 @@ contract('Root chain - client', async function (accounts) {
     //       )
     //     ])
     //   )
-
+    //   console.log("inputs to withdraw", parseInt(blockNumber) * 1000000000, parseInt(txIndex) * 10000, parseInt(outputIndex), utils.bufferToHex(exitTx.serializeTx(false)), merkleProof, sigs)
     //   // start exit
     //   const receipt = await rootChainContract.startExit(
     //     parseInt(blockNumber) * 1000000000 +
@@ -408,40 +408,15 @@ contract('Root chain - client', async function (accounts) {
       const mycontract = '0x33c93ab8c2d94bacfc743d8632fb31206c466225'
       //const mycontract = config.chain.rootChainContract
       let totalVal
-      //
-      // deposit
-      //
-      var response = await chai
-        .request(endPoint)
-        .post('/')
-        .send({
-          jsonrpc: '2.0',
-          method: 'plasma_getUTXOs',
-          params: [withdrawer.getAddressString()],
-          id: 1
-        })
-      console.log("withdrawer has %s tokens before ", response.body.result.length)
-
+      // withdraw 
       // do deposit for everyone except withdrawer and challenger 
-      for (var i = 1; i < 4; i++) {
+      for (var i = 0; i < 4; i++) {
         await deposit(wallets[i])
       }
 
       await waitFor(15000)
       console.log('Deposit done!\n')
-
-      //
-      //  faulty exit
-      //
-
       // fetch utxos
-
-      // get balance after deposit 
-      for (var i = 0; i < 4; i++) {
-        var amount = await getNoOfUTXO(wallets[i])
-        console.log("wallet %s has %s", i, amount)
-      }
-
       var response = await chai
         .request(endPoint)
         .post('/')
@@ -451,8 +426,11 @@ contract('Root chain - client', async function (accounts) {
           params: [withdrawer.getAddressString()],
           id: 1
         })
-      console.log("withdrawer has %s tokens after ", response.body.result.length)
-
+      chai.expect(response).to.be.json
+      chai.expect(response).to.have.status(200)
+      chai
+        .expect(response.body.result.length)
+        .to.be.above(0, 'No UTXOs to withdraw')
       const { blockNumber, txIndex, outputIndex, tx } = response.body.result[0]
       const exitTx = new Transaction(tx)
       let merkleProofResponse = await chai
@@ -466,7 +444,7 @@ contract('Root chain - client', async function (accounts) {
         })
       chai.expect(response).to.be.json
       chai.expect(response).to.have.status(200)
-      console.log("sending proof ", merkleProofResponse.body.result)
+
       const {
         proof: merkleProof,
         root: childBlockRoot
@@ -482,7 +460,7 @@ contract('Root chain - client', async function (accounts) {
           )
         ])
       )
-
+      console.log("inputs to withdraw", parseInt(blockNumber) * 1000000000, parseInt(txIndex) * 10000, parseInt(outputIndex), utils.bufferToHex(exitTx.serializeTx(false)), merkleProof, sigs)
       // start exit
       const receipt = await rootChainContract.startExit(
         parseInt(blockNumber) * 1000000000 +
@@ -497,6 +475,12 @@ contract('Root chain - client', async function (accounts) {
         }
       )
       console.log('Exit Done!\n')
+
+      // get balance after deposit 
+      for (var i = 0; i < 4; i++) {
+        var amount = await getNoOfUTXO(wallets[i])
+        console.log("wallet %s has %s", i, amount)
+      }
 
       //
       // transfer
@@ -535,10 +519,11 @@ contract('Root chain - client', async function (accounts) {
          blknum
        )
        console.log('Block submitted!\n')*/
-
+      console.log("sending proof", ChallengerPool, "proof ", merkleProof)
       // submiting proof to rootchain contract
       let submitResponse = await submitProof(ChallengerPool, merkleProof)
       console.log('Notifying other nodes about a faulty exit transaction', submitResponse)
+      // [Vaibhav] Tested till here 
 
       // // challenger pool available balance
       // // fetch utxos
@@ -676,7 +661,7 @@ contract('Root chain - client', async function (accounts) {
       async function submitProof(owner, proof) {
         var result = await web3.eth.sendTransaction({
           from: owner.getAddressString(),
-          to: owner.getAddressString(),
+          to: mycontract,
           data: proof
         })
 
