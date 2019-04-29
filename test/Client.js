@@ -216,9 +216,9 @@ contract('Root chain - client', async function (accounts) {
       chai.expect(response).to.have.status(200)
       chai.expect(response.body.result).to.not.equal('0x')
       await waitFor(5000)
-      var afterbalancefrom = await getNoOfUTXO(from)
-      var afterbalanceto = await getNoOfUTXO(to)
-      console.log('The Balance of :\n Sender after transfer : %s \n Receiver after transfer: %s', afterbalancefrom, afterbalanceto)
+      //var afterbalancefrom = await getNoOfUTXO(from)
+      //var afterbalanceto = await getNoOfUTXO(to)
+      //console.log('The Balance of :\n Sender after transfer : %s \n Receiver after transfer: %s', afterbalancefrom, afterbalanceto)
     })
 
     it('mine more blocks', async function () {
@@ -437,8 +437,8 @@ contract('Root chain - client', async function (accounts) {
       chai
         .expect(response.body.result.length)
         .to.be.above(0, 'No UTXOs to withdraw')
-      const { blockNumber, txIndex, outputIndex, tx } = response.body.result[0]
-      const exitTx = new Transaction(tx)
+      var { blockNumber, txIndex, outputIndex, tx } = response.body.result[0]
+      var exitTx = new Transaction(tx)
       let merkleProofResponse = await chai
         .request(endPoint)
         .post('/')
@@ -450,8 +450,9 @@ contract('Root chain - client', async function (accounts) {
         })
       chai.expect(response).to.be.json
       chai.expect(response).to.have.status(200)
-
-      const {
+      console.log('\n Param 1:',parseInt(blockNumber))
+      console.log('\n Param 2:',parseInt(txIndex))
+      var {
         proof: merkleProof,
         root: childBlockRoot
       } = merkleProofResponse.body.result
@@ -546,6 +547,10 @@ contract('Root chain - client', async function (accounts) {
       const depositbythird = await donate(depositor3, value)
       console.log('Donation has been received', depositbythird)
       await waitFor(5000)
+      await mineToBlockHeight(web3.eth.blockNumber + 7)
+
+      // wait for 10 sec (give time to sync chain. TODO fix it)
+      await waitFor(10000)
       var amount = await getNoOfUTXO(ChallengerPool)
       console.log("Challenger Pool after donation has %s", amount)
       console.log('Proceeding to Challenge Exit')
@@ -553,61 +558,73 @@ contract('Root chain - client', async function (accounts) {
       // challenge exit
       //
 
-      // let responsechallenge = await chai
-      //   .request(endPoint)
-      //   .post('/')
-      //   .send({
-      //     jsonrpc: '2.0',
-      //     method: 'plasma_getUTXOs',
-      //     params: [withdrawer.getAddressString()],
-      //     id: 1
-      //   })
-      // chai.expect(responsechallenge).to.be.json
-      // chai.expect(responsechallenge).to.have.status(200)
-      // chai
-      //   .expect(responsechallenge.body.result.length)
-      //   .to.be.above(0, 'No UTXOs to withdraw')
+       let responsechallenge = await chai
+         .request(endPoint)
+         .post('/')
+         .send({
+           jsonrpc: '2.0',
+           method: 'plasma_getUTXOs',
+           params: [withdrawer.getAddressString()],
+           id: 1
+         })
+       chai.expect(responsechallenge).to.be.json
+       chai.expect(responsechallenge).to.have.status(200)
+       chai
+         .expect(responsechallenge.body.result.length)
+         .to.be.above(0, 'No UTXOs to withdraw')
 
-      // const { blockNumberC, txIndexC, outputIndexC, txC } = responsechallenge.body.result[0]
-      // const exitTxC = new Transaction(txC)
-      // console.log('Got Exit Transaction!\n')
-      // let merkleProofResponsechallenge = await chai
-      //   .request(endPoint)
-      //   .post('/')
-      //   .send({
-      //     jsonrpc: '2.0',
-      //     method: 'plasma_getMerkleProof',
-      //     params: [parseInt(blockNumberC), parseInt(txIndexC)],
-      //     id: 1
-      //   })
-      // chai.expect(response).to.be.json
-      // chai.expect(response).to.have.status(200)
-      // // console.log("second proog", merkleProofResponsechallenge.body.result)
-      // const {
-      //   proof: merkleProofC,
-      //   root: childBlockRootC
-      // } = merkleProofResponse.body.result
-
-      // const sigsC = utils.bufferToHex(
-      //   Buffer.concat([
-      //     exitTx.sig1,
-      //     exitTx.sig2,
-      //     exitTx.confirmSig(
-      //       utils.toBuffer(childBlockRootC),
-      //       wallets[0].getPrivateKey() // attested transaction from sender to receiver
-      //     )
-      //   ])
-      // )
-
-      // const exitIdC = (parseInt(blockNumberC) - 1) * 1000000000 + 10000 * 0 + 0
-      // const receiptC = await rootChain.challengeExit(
-      //   parseInt(blockNumberC) * 1000000000 + parseInt(txIndexC) * 10000 + parseInt(outputIndexC),
-      //   exitIdC,
-      //   utils.bufferToHex(exitTxC.serializeTx(false)),
-      //   merkleProofC,
-      //   sigsC,
-      //   utils.bufferToHex(confirmSig)
-      // )
+       var { blockNumber, txIndex, outputIndex, tx } = responsechallenge.body.result[0]
+       console.log('\n Param 1',parseInt(blockNumber))
+       console.log(blockNumber)
+       console.log('\n Param 2',parseInt(txIndex))
+       console.log(txIndex)
+       var exitTx = new Transaction(tx)
+       console.log('Got Exit Transaction!\n')
+       console.log('**',responsechallenge.body.result)
+       let merkleProofResponsechallenge = await chai
+         .request(endPoint)
+         .post('/')
+         .send({
+           jsonrpc: '2.0',
+           method: 'plasma_getMerkleProof',
+           params: [parseInt(blockNumber), parseInt(txIndex)],
+           id: 1
+         })
+       chai.expect(response).to.be.json
+       chai.expect(response).to.have.status(200)
+       console.log("second proof", merkleProofResponsechallenge.body.result)
+       var {
+         proof: merkleProof,
+         root: childBlockRoot
+       } = merkleProofResponse.body.result
+       console.log('Proof',merkleProof)
+       console.log('root',childBlockRoot)
+       const sigsC = utils.bufferToHex(
+         Buffer.concat([
+           exitTx.sig1,
+           exitTx.sig2,
+           exitTx.confirmSig(
+             utils.toBuffer(childBlockRoot),
+             wallets[0].getPrivateKey() // attested transaction from sender to receiver
+           )
+         ])
+       )
+       let confirmSig = exitTx.confirmSig(
+        childBlockRoot,
+        wallets[0].getPrivateKey()
+       )
+       console.log('ExitC',exitTx)
+       console.log('\n Confirm Signature', confirmSig)
+       const exitIdC = (parseInt(blockNumber) - 1) * 1000000000 + 10000 * 0 + 0
+       console.log(exitIdC)
+       const receiptC = await rootChainContract.challengeExit(
+         parseInt(blockNumber) * 1000000000 + parseInt(txIndex) * 10000 + parseInt(outputIndex),
+         exitIdC,
+         utils.bufferToHex(exitTx.serializeTx(false)),
+         merkleProof,
+         sigsC,
+         utils.bufferToHex(confirmSig) // attested transaction from sender to receiver
+        )
 
 
 
