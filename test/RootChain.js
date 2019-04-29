@@ -577,7 +577,10 @@ contract('Root chain', function(accounts) {
       sigs = utils.bufferToHex(
         Buffer.concat([transferTx.sig1, transferTx.sig2])
       )
-
+      console.log('\n Confirm Signature', confirmSig)
+      console.log('\n Signatures',sigs)
+      console.log('Proof',proof)
+      console.log('Transfer transaction bytes',transferTxBytes)
       const exitId = (currentChildBlock - 1) * 1000000000 + 10000 * 0 + 0
       receipt = await rootChain.challengeExit(
         currentChildBlock * 1000000000 + 10000 * 0 + 0,

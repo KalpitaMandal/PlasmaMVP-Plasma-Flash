@@ -469,6 +469,7 @@ contract('Root chain - client', async function (accounts) {
       )
       console.log("inputs to withdraw", parseInt(blockNumber) * 1000000000, parseInt(txIndex) * 10000, parseInt(outputIndex), utils.bufferToHex(exitTx.serializeTx(false)), merkleProof, sigs)
       // start exit
+      const exitIdC = parseInt(blockNumber) * 1000000000 + parseInt(txIndex) * 10000 + parseInt(outputIndex)
       const receipt = await rootChainContract.startExit(
         parseInt(blockNumber) * 1000000000 +
         parseInt(txIndex) * 10000 +
@@ -609,21 +610,27 @@ contract('Root chain - client', async function (accounts) {
            )
          ])
        )
-       let confirmSig = exitTx.confirmSig(
-        childBlockRoot,
+       let confirmSig = utils.bufferToHex(exitTx.confirmSig(
+        utils.toBuffer(childBlockRoot),
         wallets[0].getPrivateKey()
        )
-       console.log('ExitC',exitTx)
+       )
+
+       //console.log('ExitC',exitTx)
        console.log('\n Confirm Signature', confirmSig)
-       const exitIdC = (parseInt(blockNumber) - 1) * 1000000000 + 10000 * 0 + 0
-       console.log(exitIdC)
+       console.log('\n Signatures',sigsC)
+       //const exitIdC = (parseInt(blockNumber) - 4) * 1000000000 + 10000 * 0 + 0
+       const exitIdA = parseInt(blockNumber) * 1000000000 + parseInt(txIndex) * 10000 + parseInt(outputIndex)
+       console.log('Exit ID of Transaction',exitIdC)
+       console.log('Exit ID of Challenge',exitIdA)
+       console.log('Transaction Bytes',utils.bufferToHex(exitTx.serializeTx(false)))
        const receiptC = await rootChainContract.challengeExit(
-         parseInt(blockNumber) * 1000000000 + parseInt(txIndex) * 10000 + parseInt(outputIndex),
+         exitIdA,
          exitIdC,
          utils.bufferToHex(exitTx.serializeTx(false)),
          merkleProof,
          sigsC,
-         utils.bufferToHex(confirmSig) // attested transaction from sender to receiver
+         confirmSig // attested transaction from sender to receiver
         )
 
 
